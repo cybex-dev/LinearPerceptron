@@ -111,24 +111,36 @@ public class Neuron {
     }
 
     public static void main(String[] args) {
-        Neuron AN = new Neuron(0.00000001, 0.3);
-        int count = 10000000; // number of iterations
+        Neuron AN = new Neuron(0.00001, 0.3);
+        int count = Integer.MAX_VALUE; // number of iterations
 
-        List<TestMark> trainingDataInputs = TestMark.loadTrainingValues(); //n x m matrix of training patterns
+        //training patterns
+        List<TestMark> trainingDataInputs = TestMark.loadTrainingValues();
 
-        List<TestMark> testDataInputs = TestMark.loadEvaluationValues();//n x m matrix of test patterns
+        //test patterns
+        List<TestMark> testDataInputs = TestMark.loadTestValues();
 
-        Double SSE = Double.MAX_VALUE, oldSSE = 0.0;
+        //evaluation patterns
+        List<TestMark> evaluationInputs = TestMark.loadEvaluationValues();
+
+        Double SSEtrain = Double.MAX_VALUE, oldSSEtrain = 0.0,
+                SSEtest = Double.MAX_VALUE, oldSSEtest = 0.0;
 
         //AN training phase
-        for (int i = 0; i < count; i++) {
-            oldSSE = SSE;
-            SSE = 0.0;
+        int m = -1;
+        Double p = 0.0;
 
-            for (int m = 0; m < trainingDataInputs.size(); m++) {
+        for (int i = 0; i < count; i++) {
+            oldSSEtrain = SSEtrain;
+            SSEtrain = 0.0;
+
+            oldSSEtest = SSEtest;
+            SSEtest = 0.0;
+
+            for (m = 0; m < trainingDataInputs.size(); m++) {
                 AN.updateInputVector(trainingDataInputs.get(m).getMarks());
                 AN.calcFNet();
-                SSE += Math.pow((trainingDataInputs.get(m).exam - AN.calcNeuronOutput()), 2);
+                SSEtrain += Math.pow((trainingDataInputs.get(m).exam - AN.calcNeuronOutput()), 2);
                 AN.updateInputWeights(trainingDataInputs.get(m).exam);
             }
             //training pattern set completed
@@ -137,19 +149,25 @@ public class Neuron {
 //            }
 
             // Test accuracy on testing set
-            List<Double> percentErrors = new ArrayList<>();
+            Double sseErrors = 0.0;
             for (int n = 0; n < testDataInputs.size(); n++) {
                 AN.updateInputVector(trainingDataInputs.get(n).getMarks());
                 AN.calcFNet();
-                Double exam = trainingDataInputs.get(n).exam;
-                Double err = (exam - AN.fNet)/ exam;
-                percentErrors.add(Math.abs(err));
-            }
-            if (i % 50000 == 0) {
-                System.out.printf("Error %f%%\n", percentErrors.stream().mapToDouble(value -> value).average().orElse(-1.0f));
+                Double exam = testDataInputs.get(n).exam;
+                sseErrors += Math.pow( (exam - AN.fNet) ,2);
             }
 
-            if (oldSSE <= SSE) {
+            if (sseErrors <= 0.10) {
+                System.out.print("Training stopped since 10% error reached\n");
+                System.out.printf("Error %f%%\n", p);
+                break;
+            }
+
+            if (i % 50000 == 0) {
+                System.out.printf("Error %f%%\n", p);
+            }
+
+            if (oldSSEtrain <= SSEtrain) {
                 System.out.print("Training stopped since SSE(t-1) == SSE(t)\n");
                 System.out.print("We do not want to overtrain\n");
                 i = count;
@@ -158,10 +176,13 @@ public class Neuron {
         }
         //completed number of iterations
 
+        System.out.printf("Stopped on iteration: %d", m);
+        System.out.printf("Weights: \n1. %f\n2. %f\n3. %f\nBias %f\n", AN.inputWeights.get(0), AN.inputWeights.get(1), AN.inputWeights.get(2), AN.biasWeight);
+
 
         // Prediction
-        for (int m = 0; m < testDataInputs.size(); m++) {
-            AN.updateInputVector(testDataInputs.get(m).getMarks());
+        for (int s = 0; s < evaluationInputs.size(); s++) {
+            AN.updateInputVector(evaluationInputs.get(s).getMarks());
             AN.calcFNet();
             System.out.printf("Neuron Output = %f\n", AN.fNet);
         }
